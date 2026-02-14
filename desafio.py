@@ -1,3 +1,103 @@
+import datetime
+
+
+def log_transacao(tipo):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            result = func(*args, **kwargs)
+
+            if 'valor' in kwargs:
+                valor = kwargs.get('valor')
+            else:
+                valor = args[1] if len(args) > 1 else None
+
+            if isinstance(result, tuple) and len(result) >= 2 and isinstance(result[1], str) and valor is not None:
+                data_hora = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                novo_extrato = result[1] + f"{data_hora} - {tipo}: R$ {valor:.2f}\n"
+                new_result = list(result)
+                new_result[1] = novo_extrato
+                return tuple(new_result)
+
+            return result
+
+        return wrapper
+
+    return decorator
+
+class ContaIterador:
+    def __init__(self, contas):
+        self._contas = contas
+        self._index = 0
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._index < len(self._contas):
+            conta = self._contas[self._index]
+            self._index += 1
+            return conta
+        raise StopIteration
+
+class Cliente:
+    def __init__ (self, nome, data_nascimento, cpf, endereco):
+        self.nome = nome
+        self.data_nascimento = data_nascimento
+        self.cpf = cpf
+        self.endereco = endereco
+        self.saldo = 0
+        self.extrato = ""
+        self.contas = []
+    
+    def realizar_transacao(self, conta, transacao):
+        if len(conta.historico.transacoes) >= 10:
+            print("Limite de transações atingido para esta conta.")
+            return
+        
+        transacao.registrar(conta)
+    
+    def adicionar_conta(self, conta):
+        self.contas.append(conta)
+
+class Conta:
+    def __init__ (self, agencia, numero_conta, cliente):
+        self.agencia = agencia
+        self.numero_conta = numero_conta
+        self.cliente = cliente
+        self.historico = HistoricoTransacoes()
+class HistoricoTransacoes:
+    def __init__(self):
+        self.transacoes = []
+    
+    def adicionar_transacao(self, transacao):
+        self._transacoes.append(
+            {
+                "tipo": transacao.__class__.__name__,
+                "valor": transacao.valor,
+                "data_hora": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+        )
+
+    def gerar_relatorio(self, tipo_transacao=None):
+        for transacao in self.transacoes:
+            if tipo_transacao is None or transacao["tipo"].lower() == tipo_transacao.lower():
+                yield transacao
+
+    def transacoes_do_dia(self):
+        data_atual = datetime.datetime.now().date()
+        transacoes= []
+        for transacao in self.transacoes:
+            data_transacao = datetime.datetime.strptime(transacao["data_hora"], "%Y-%m-%d %H:%M:%S").date()
+            if data_transacao == data_atual:
+                transacoes.append(transacao)
+        return transacoes
+    
+class Transacoes:
+    def __init__ (self, tipo, valor):
+        self.tipo = tipo
+        self.valor = valor
+        self.data_hora = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
 def menu():
     menu = """
     ============== MENU ==============
@@ -11,15 +111,17 @@ def menu():
     => """
     return input(menu)
 
+@log_transacao("Depósito")
 def depositar(saldo, valor, extrato):
     if valor > 0:
         saldo += valor
-        extrato += f"Depósito: R$ {valor:.2f}\n"
         print("Depósito realizado.")
     else:
         print("Não foi possível. O valor informado é inválido.")
     return saldo, extrato
 
+
+@log_transacao("Saque")
 def sacar(saldo, valor, extrato, numero_saques, limite, LIMITE_SAQUES):
     excedeu_saldo = valor > saldo
     excedeu_limite = valor > limite
@@ -92,6 +194,7 @@ def novo_usuario(usuarios):
 def filtrar_usuario(cpf, usuarios):
     usuario_filtrado = [usuario for usuario in usuarios if usuario["cpf"] == cpf]
     return usuario_filtrado[0] if usuario_filtrado else None
+
 
 saldo = 0
 extrato = ""
