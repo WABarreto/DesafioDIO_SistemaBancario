@@ -1,24 +1,28 @@
 import datetime
 
-
 def log_transacao(tipo):
     def decorator(func):
         def wrapper(*args, **kwargs):
-            result = func(*args, **kwargs)
+            resultado = func(*args, **kwargs)
 
             if 'valor' in kwargs:
                 valor = kwargs.get('valor')
             else:
                 valor = args[1] if len(args) > 1 else None
 
-            if isinstance(result, tuple) and len(result) >= 2 and isinstance(result[1], str) and valor is not None:
+            if isinstance(resultado, tuple) and len(resultado) >= 2 and isinstance(resultado[1], str) and valor is not None:
                 data_hora = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                novo_extrato = result[1] + f"{data_hora} - {tipo}: R$ {valor:.2f}\n"
-                new_result = list(result)
-                new_result[1] = novo_extrato
-                return tuple(new_result)
 
-            return result
+                novo_extrato = resultado[1] + f"{data_hora} - {tipo}: R$ {valor:.2f}\n"
+                novo_resultado = list(resultado)
+                novo_resultado[1] = novo_extrato
+
+                with open("log.txt", "a") as arquivo:
+                    arquivo.write(novo_extrato)
+
+                return tuple(novo_resultado)
+
+            return resultado
 
         return wrapper
 
@@ -65,6 +69,7 @@ class Conta:
         self.numero_conta = numero_conta
         self.cliente = cliente
         self.historico = HistoricoTransacoes()
+
 class HistoricoTransacoes:
     def __init__(self):
         self.transacoes = []
