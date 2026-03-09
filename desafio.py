@@ -5,22 +5,15 @@ def log_transacao(tipo):
         def wrapper(*args, **kwargs):
             resultado = func(*args, **kwargs)
 
-            if 'valor' in kwargs:
-                valor = kwargs.get('valor')
-            else:
-                valor = args[1] if len(args) > 1 else None
+            valor = kwargs.get("valor", args[1] if len(args) > 1 else None)
 
             if isinstance(resultado, tuple) and len(resultado) >= 2 and isinstance(resultado[1], str) and valor is not None:
                 data_hora = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-                novo_extrato = resultado[1] + f"{data_hora} - {tipo}: R$ {valor:.2f}\n"
-                novo_resultado = list(resultado)
-                novo_resultado[1] = novo_extrato
+                log = f"{data_hora} - {tipo}: R$ {valor:.2f}"
 
-                with open("log.txt", "a") as arquivo:
-                    arquivo.write(novo_extrato)
-
-                return tuple(novo_resultado)
+                with open("log.txt", "a", encoding="utf-8") as arquivo:
+                    arquivo.write(log + "\n")
 
             return resultado
 
@@ -49,8 +42,6 @@ class Cliente:
         self.data_nascimento = data_nascimento
         self.cpf = cpf
         self.endereco = endereco
-        self.saldo = 0
-        self.extrato = ""
         self.contas = []
     
     def realizar_transacao(self, conta, transacao):
@@ -69,13 +60,19 @@ class Conta:
         self.numero_conta = numero_conta
         self.cliente = cliente
         self.historico = HistoricoTransacoes()
+        self.saldo = 0
+        self.extrato = ""
 
 class HistoricoTransacoes:
     def __init__(self):
-        self.transacoes = []
+        self._transacoes = []
+
+    @property
+    def transacoes(self):
+        return self._transacoes
     
     def adicionar_transacao(self, transacao):
-        self._transacoes.append(
+        self.transacoes.append(
             {
                 "tipo": transacao.__class__.__name__,
                 "valor": transacao.valor,
@@ -97,11 +94,26 @@ class HistoricoTransacoes:
                 transacoes.append(transacao)
         return transacoes
     
-class Transacoes:
-    def __init__ (self, tipo, valor):
-        self.tipo = tipo
+class Transacao:
+    def registrar(self, conta):
+        raise NotImplementedError
+    
+class Deposito(Transacao):
+    def __init__(self, valor):
         self.valor = valor
-        self.data_hora = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    def registrar(self, conta):
+        conta.saldo += self.valor
+        conta.historico.adicionar_transacao(self)
+
+class Saque(Transacao):
+    def __init__(self, valor):
+        self.valor = valor
+
+    def registrar(self, conta):
+        if conta.saldo >= self.valor:
+            conta.saldo -= self.valor
+            conta.historico.adicionar_transacao(self)
 
 def menu():
     menu = """
@@ -175,7 +187,7 @@ def listar_contas(contas):
     if not contas:
         print("Não existem contas cadastradas.")
         return
-    for conta in contas:
+    for conta in ContaIterador(contas):
         linha = f"Agência: {conta['agencia']} / Número da conta: {conta['numero_conta']} / Titular: {conta['usuario']['nome']}"
         print(linha)
 
